@@ -48,12 +48,11 @@ static int size_drt_tran(struct drt_tran *tran) {
 	return a;
 }
 
-int size_drt_drt_transform(DRTTransform *trans) {
-	int a = sizeof(drt_id) + sizeof(enum drt_trans_type) +
-			size_drt_tran(&trans->forward);
+int size_drt_transform(DRTTransform *trans) {
+	int a = sizeof(enum drt_trans_type) + size_drt_tran(&trans->forward);
 	if (trans->reverse != NULL)
 		a += size_drt_tran(trans->reverse);
 	return a;
 }
 
-void enc_drt_drt_transform(DRTTransform *trans, unsigned char *buf) {}
+void enc_drt_transform(DRTTransform *trans, unsigned char *buf) {}

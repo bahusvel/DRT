@@ -12,6 +12,11 @@
 #include <linux/fiemap.h>
 #include <linux/fs.h>
 
+#include "entities.h"
+
+static drt_data_id DATA_ID = 0;
+static drt_blob_id BLOB_ID = 0;
+
 void syntax(char **argv) { fprintf(stderr, "%s [filename]...\n", argv[0]); }
 uint32_t crc32c(uint32_t crc, const uint8_t *data, unsigned int length);
 
@@ -59,7 +64,69 @@ struct fiemap *read_fiemap(int fd) {
 	return fiemap;
 }
 
-void gen_drt(const char *file) {
+void dump_fiemap(struct fiemap *fiemap, const char *filename) {
+	int i;
+
+	printf("File %s has %d extents:\n", filename, fiemap->fm_mapped_extents);
+
+	printf("#\tLogical          Physical         Length           Flags\n");
+	for (i = 0; i < fiemap->fm_mapped_extents; i++) {
+		printf("%d:\t%-16.16llx %-16.16llx %-16.16llx %-4.4x\n", i,
+			   fiemap->fm_extents[i].fe_logical,
+			   fiemap->fm_extents[i].fe_physical,
+			   fiemap->fm_extents[i].fe_length, fiemap->fm_extents[i].fe_flags);
+	}
+	printf("\n");
+}
+
+drt_blob_id encode_extent(drt_data_id data, drt_medium_id medium,
+						  struct fiemap_extent *extent) {
+
+	DRTBlob blob = {.id = BLOB_ID++,
+					.data = data,
+					.medium = medium,
+					.offset = extent->fe_physical,
+					.length = extent->fe_length};
+
+	void *databuff = alloca(size_drt_blob());
+	enc_drt_blob(&blob, databuff);
+	// write
+	return blob.id;
+}
+
+void gen_fs_drt(int fd, DRTBlob *fileblob) {
+
+	struct fiemap *fiemap = read_fiemap(fd);
+	if (fiemap == NULL) {
+		return;
+	}
+
+	dump_fiemap(fiemap, "file");
+
+	struct drt_arg *in_blobs = NEW_DRT_ARGS(fiemap->fm_mapped_extents);
+	DRTMedium blkmedium = {};
+
+	for (int i = 0; i < fiemap->fm_mapped_extents; i++) {
+		in_blobs[i].type = BLOB;
+		in_blobs[i].blob =
+			encode_extent(fileblob->data, blkmedium.id, &fiemap->fm_extents[i]);
+	}
+
+	DRTTransform trans = {.type = LOSSLESS,
+						  .reverse = {
+							  .arg_count = fiemap->fm_mapped_extents,
+							  .args = in_blobs,
+							  .func = 0,
+							  .out_count = 1,
+							  .out_blobs = &fileblob->id,
+						  }};
+
+	void *databuff = alloca(size_drt_transform(&trans));
+	enc_drt_transform(&trans, databuff);
+	// write
+}
+
+void gen_file_drt(const char *file) {
 	int fd;
 	if ((fd = open(file, O_RDONLY)) < 0) {
 		fprintf(stderr, "Cannot open file %s\n", file);
@@ -84,32 +151,19 @@ void gen_drt(const char *file) {
 		i += n;
 	}
 
-	struct fiemap *fiemap = read_fiemap(fd);
-	if (fiemap == NULL) {
-		return;
-	}
+	DRTMedium fsmedium = {};
 
-	for (int i = 0; i < fiemap->fm_mapped_extents; i++) {
-		struct fiemap_extent *extent = &fiemap->fm_extents[i];
-		printf("%d:\t%-16.16llx %-16.16llx %-16.16llx %-4.4x\n", i,
-			   extent->fe_logical, extent->fe_physical, extent->fe_length,
-			   extent->fe_flags);
-	}
-}
+	struct drt_tags filetags = NEW_DRT_TAGS(1);
+	SET_DRT_TAG_STRING(0, file, filetags);
 
-void dump_fiemap(struct fiemap *fiemap, char *filename) {
-	int i;
+	DRTData drtfile = {.id = DATA_ID++, filetags, .checksum = crc};
+	DRTBlob fileblob = {
+		.id = BLOB_ID++, .data = drtfile.id, .medium = fsmedium.id};
+	void *databuff = alloca(size_drt_data(&drtfile));
+	enc_drt_data(&drtfile, databuff);
+	// write
 
-	printf("File %s has %d extents:\n", filename, fiemap->fm_mapped_extents);
-
-	printf("#\tLogical          Physical         Length           Flags\n");
-	for (i = 0; i < fiemap->fm_mapped_extents; i++) {
-		printf("%d:\t%-16.16llx %-16.16llx %-16.16llx %-4.4x\n", i,
-			   fiemap->fm_extents[i].fe_logical,
-			   fiemap->fm_extents[i].fe_physical,
-			   fiemap->fm_extents[i].fe_length, fiemap->fm_extents[i].fe_flags);
-	}
-	printf("\n");
+	gen_fs_drt(fd, &fileblob);
 }
 
 int main(int argc, char **argv) {
