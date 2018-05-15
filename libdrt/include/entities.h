@@ -1,15 +1,29 @@
 #ifndef LIBDRT_ENTITIES
 #define LIBDRT_ENTITIES
 
-typedef unsigned long drt_id;
+#include <stdint.h>
+
+typedef uint64_t drt_id;
 typedef drt_id drt_blob_id;
 typedef drt_id drt_func_id;
 typedef drt_id drt_data_id;
 typedef drt_id drt_medium_id;
 
-typedef long drt_off;
-typedef int drt_inline_len;
-typedef unsigned long drt_checksum;
+typedef int64_t drt_off;
+typedef uint32_t drt_inline_len;
+typedef uint32_t drt_checksum;
+
+enum drt_entity_type {
+	ENT_BLOB,
+	ENT_FUNC,
+	ENT_DATA,
+	ENT_TRANSFORM,
+	ENT_MEDIUM
+};
+
+#define SIZE_ENTITY_TYPE 1
+#define SIZE_ARG_TYPE 1
+#define SIZE_TRANS_TYPE 1
 
 struct drt_tag {
 	drt_inline_len len;
@@ -37,8 +51,8 @@ void enc_drt_medium(DRTMedium *medium, unsigned char *buf);
 
 typedef struct drt_data {
 	drt_data_id id;
-	struct drt_tags tags;
 	drt_checksum checksum;
+	struct drt_tags tags;
 } DRTData;
 
 int size_drt_data(DRTData *data);
@@ -52,7 +66,7 @@ typedef struct drt_blob {
 	drt_off length;
 } DRTBlob;
 
-int size_drt_blob();
+int size_drt_blob(DRTBlob *blob);
 void enc_drt_blob(DRTBlob *blob, unsigned char *buf);
 
 typedef struct drt_func {
@@ -90,7 +104,7 @@ struct drt_tran {
 	drt_blob_id *out_blobs;
 };
 
-enum drt_trans_type { DISCARD, LOSSY, LOSSLESS };
+enum drt_trans_type { DISCARD, IRREVERSIBLE, REVERSIBLE, LOSSY };
 
 typedef struct drt_transform {
 	enum drt_trans_type type;

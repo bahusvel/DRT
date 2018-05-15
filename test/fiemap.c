@@ -16,8 +16,12 @@
 
 static drt_data_id DATA_ID = 0;
 static drt_blob_id BLOB_ID = 0;
+static drt_medium_id MEDIUM_ID = 1;
 
-void syntax(char **argv) { fprintf(stderr, "%s [filename]...\n", argv[0]); }
+DRTMedium BLK_MEDIUM = (DRTMedium){.id = 0, .tags = {0, NULL}};
+
+int DRT_LOG_FD = 0;
+
 uint32_t crc32c(uint32_t crc, const uint8_t *data, unsigned int length);
 
 struct fiemap *read_fiemap(int fd) {
@@ -79,23 +83,28 @@ void dump_fiemap(struct fiemap *fiemap, const char *filename) {
 	printf("\n");
 }
 
+#define DRT_WRITE_ENTITY(entity, type, fd)                                     \
+	{                                                                          \
+		size_t _size = size_drt_##type(&entity);                               \
+		void *_buff = alloca(_size);                                           \
+		enc_drt_##type(&entity, _buff);                                        \
+		write(fd, _buff, _size);                                               \
+	}
+
 drt_blob_id encode_extent(drt_data_id data, drt_medium_id medium,
 						  struct fiemap_extent *extent) {
-
 	DRTBlob blob = {.id = BLOB_ID++,
 					.data = data,
 					.medium = medium,
 					.offset = extent->fe_physical,
 					.length = extent->fe_length};
 
-	void *databuff = alloca(size_drt_blob());
-	enc_drt_blob(&blob, databuff);
-	// write
+	DRT_WRITE_ENTITY(blob, blob, DRT_LOG_FD);
+
 	return blob.id;
 }
 
 void gen_fs_drt(int fd, DRTBlob *fileblob) {
-
 	struct fiemap *fiemap = read_fiemap(fd);
 	if (fiemap == NULL) {
 		return;
@@ -104,26 +113,23 @@ void gen_fs_drt(int fd, DRTBlob *fileblob) {
 	dump_fiemap(fiemap, "file");
 
 	struct drt_arg *in_blobs = NEW_DRT_ARGS(fiemap->fm_mapped_extents);
-	DRTMedium blkmedium = {};
 
 	for (int i = 0; i < fiemap->fm_mapped_extents; i++) {
 		in_blobs[i].type = BLOB;
-		in_blobs[i].blob =
-			encode_extent(fileblob->data, blkmedium.id, &fiemap->fm_extents[i]);
+		in_blobs[i].blob = encode_extent(fileblob->data, BLK_MEDIUM.id,
+										 &fiemap->fm_extents[i]);
 	}
 
 	DRTTransform trans = {.type = LOSSLESS,
 						  .reverse = {
 							  .arg_count = fiemap->fm_mapped_extents,
 							  .args = in_blobs,
-							  .func = 0,
+							  .func = 1,
 							  .out_count = 1,
 							  .out_blobs = &fileblob->id,
 						  }};
 
-	void *databuff = alloca(size_drt_transform(&trans));
-	enc_drt_transform(&trans, databuff);
-	// write
+	DRT_WRITE_ENTITY(trans, transform, DRT_LOG_FD);
 }
 
 void gen_file_drt(const char *file) {
@@ -151,30 +157,45 @@ void gen_file_drt(const char *file) {
 		i += n;
 	}
 
-	DRTMedium fsmedium = {};
-
 	struct drt_tags filetags = NEW_DRT_TAGS(1);
 	SET_DRT_TAG_STRING(0, file, filetags);
 
-	DRTData drtfile = {.id = DATA_ID++, filetags, .checksum = crc};
+	DRTMedium file_medium = {.id = MEDIUM_ID++, .tags = filetags};
+	DRT_WRITE_ENTITY(file_medium, medium, DRT_LOG_FD);
+
+	DRTData drtfile = {.id = DATA_ID++, .tags = filetags, .checksum = crc};
+	DRT_WRITE_ENTITY(drtfile, data, DRT_LOG_FD);
+
 	DRTBlob fileblob = {
-		.id = BLOB_ID++, .data = drtfile.id, .medium = fsmedium.id};
-	void *databuff = alloca(size_drt_data(&drtfile));
-	enc_drt_data(&drtfile, databuff);
-	// write
+		.id = BLOB_ID++, .data = drtfile.id, .medium = file_medium.id};
+	DRT_WRITE_ENTITY(fileblob, blob, DRT_LOG_FD);
 
 	gen_fs_drt(fd, &fileblob);
 }
 
+void syntax(char **argv) {
+	fprintf(stderr, "%s <drt_log_file> [file] ...\n", argv[0]);
+}
+
 int main(int argc, char **argv) {
+
 	int i;
 
-	if (argc < 2) {
+	if (argc < 3) {
 		syntax(argv);
 		exit(EXIT_FAILURE);
 	}
 
-	for (i = 1; i < argc; i++) {
+	DRT_LOG_FD = open(argv[1], O_APPEND | O_CREAT | O_WRONLY);
+
+	if (DRT_LOG_FD < 0) {
+		perror("Cannot open drt_log_file");
+		exit(EXIT_FAILURE);
+	}
+
+	DRT_WRITE_ENTITY(BLK_MEDIUM, medium, DRT_LOG_FD);
+
+	for (i = 2; i < argc; i++) {
 		int fd;
 
 		if ((fd = open(argv[i], O_RDONLY)) < 0) {
