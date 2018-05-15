@@ -1,7 +1,10 @@
 test_fiemap: block_device fiemap.c
-	gcc fiemap.c -o fiemap
+	rm -rf test.drtl
+	make -C ../libdrt/ compile
+	gcc -I../libdrt/include fiemap.c -o fiemap -L../libdrt/build -ldrt
 	cp fiemap.c ext4fs
-	./fiemap ext4fs/fiemap.c
+	./fiemap test.drtl ext4fs/fiemap.c
+	hexdump -C test.drtl
 
 block_device:
 	stat block.raw > /dev/null || ( \

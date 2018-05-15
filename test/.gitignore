@@ -1,3 +1,5 @@
 block.raw
 ext4fs
 fiemap
+*.drtl
+*.drtt

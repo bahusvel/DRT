@@ -120,7 +120,7 @@ void gen_fs_drt(int fd, DRTBlob *fileblob) {
 										 &fiemap->fm_extents[i]);
 	}
 
-	DRTTransform trans = {.type = LOSSLESS,
+	DRTTransform trans = {.type = REVERSIBLE,
 						  .reverse = {
 							  .arg_count = fiemap->fm_mapped_extents,
 							  .args = in_blobs,
@@ -192,21 +192,10 @@ int main(int argc, char **argv) {
 		perror("Cannot open drt_log_file");
 		exit(EXIT_FAILURE);
 	}
-
 	DRT_WRITE_ENTITY(BLK_MEDIUM, medium, DRT_LOG_FD);
 
 	for (i = 2; i < argc; i++) {
-		int fd;
-
-		if ((fd = open(argv[i], O_RDONLY)) < 0) {
-			fprintf(stderr, "Cannot open file %s\n", argv[i]);
-		} else {
-			struct fiemap *fiemap;
-
-			if ((fiemap = read_fiemap(fd)) != NULL)
-				dump_fiemap(fiemap, argv[i]);
-			close(fd);
-		}
+		gen_file_drt(argv[i]);
 	}
 	exit(EXIT_SUCCESS);
 }
