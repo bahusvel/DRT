@@ -166,8 +166,10 @@ void gen_file_drt(const char *file) {
 	DRTData drtfile = {.id = DATA_ID++, .tags = filetags, .checksum = crc};
 	DRT_WRITE_ENTITY(drtfile, data, DRT_LOG_FD);
 
-	DRTBlob fileblob = {
-		.id = BLOB_ID++, .data = drtfile.id, .medium = file_medium.id};
+	DRTBlob fileblob = {.id = BLOB_ID++,
+						.data = drtfile.id,
+						.medium = file_medium.id,
+						.length = fstats.st_size};
 	DRT_WRITE_ENTITY(fileblob, blob, DRT_LOG_FD);
 
 	gen_fs_drt(fd, &fileblob);

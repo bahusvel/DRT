@@ -1,15 +1,25 @@
 module Entities (
-    decodeMedium,
-    decodeData,
-    decodeBlob,
-    decodeFunc,
-    decodeTransform
+    someFunc,
+    getEntity,
+    DRTEntity (..),
+    Medium,
+    Data (iblobId),
+    Blob,
+    Func,
+    Transform (ReverseTransform),
+    Trans (out, args),
+    Arg(BlobArg),
+    BlobID
 ) where
 
 import           Control.Monad
 import           Data.Binary.Get
 import           Data.ByteString.Char8 (unpack)
 import           Data.Word
+
+
+someFunc :: IO ()
+someFunc = putStrLn "someFunc"
 
 type ID = Int
 type BlobID = ID
@@ -19,19 +29,28 @@ type FuncID = ID
 type Tag = String
 type Checksum = Int
 
-data EntityType = BlobEntity | FuncEntity | DataEntity | TransformEntity | MediumEntity deriving (Enum)
+data EntityType = BlobEntity | FuncEntity | DataEntity | TransformEntity | MediumEntity deriving (Enum, Show)
 
-class DRTEntity a where
-    decode :: Get a
+data DRTEntity = DRTBlob Blob | DRTFunc Func | DRTData Data | DRTTransform Transform | DRTMedium Medium deriving (Show)
+
+getEntity :: Get DRTEntity
+getEntity = do
+        entity <- toEnum . fromIntegral <$> getWord8
+        case entity of
+            BlobEntity      -> DRTBlob <$> decodeBlob
+            FuncEntity      -> DRTFunc <$> decodeFunc
+            DataEntity      -> DRTData <$> decodeData
+            TransformEntity -> DRTTransform <$> decodeTransform
+            MediumEntity    -> DRTMedium <$> decodeMedium
 
 getDrtId :: Get ID
-getDrtId = fromIntegral <$> getWord64be
+getDrtId = fromIntegral <$> getInt64be
 
 getDrtLen :: Get Int
-getDrtLen = fromIntegral <$> getWord64be
+getDrtLen = fromIntegral <$> getInt32be
 
 getDrtOffset :: Get Int
-getDrtOffset = fromIntegral <$> getWord64be
+getDrtOffset = fromIntegral <$> getInt64be
 
 decodeTags :: Get [Tag]
 decodeTags = do
@@ -47,56 +66,40 @@ data Medium = Medium {
     mediumTags :: [Tag]
 } deriving (Show)
 
-decodeMedium :: Get Medium
-decodeMedium = do
-    i <- getDrtId
-    t <- decodeTags
-    return Medium {mediumId = i, mediumTags = t}
+decodeMedium = liftM2 Medium getDrtId decodeTags
 
 data Data = Data {
     dataId   :: DataID,
+    iblobId  :: BlobID, -- This is for first implicit data blob
     checksum :: Checksum,
     dataTags :: [Tag]
 } deriving (Show)
 
-decodeData :: Get Data
-decodeData = do
-    d <- getDrtId
-    c <- getWord32be
-    t <- decodeTags
-    return Data {dataId = d, checksum = fromIntegral c, dataTags = t}
+decodeData =  liftM4 Data getDrtId getDrtId (fromIntegral <$> getWord32be) decodeTags
 
 data Blob = Blob {
     blobId     :: BlobID,
-    parentData :: DataID,
     medium     :: MediumID,
     offset     :: Int,
     blobLength :: Int
 } deriving (Show)
 
-decodeBlob :: Get Blob
-decodeBlob = do
-    i <- getDrtId
-    d <- getDrtId
-    m <- getDrtId
-    o <- getDrtOffset
-    l <- getDrtOffset
-    return Blob {blobId = i, parentData = d, medium = m, offset = o, blobLength = l}
+decodeBlob = liftM4 Blob getDrtId getDrtId getDrtOffset getDrtOffset
 
 data Func = Func {
     funcId :: FuncID,
     code   :: String
 } deriving (Show)
 
-decodeFunc :: Get Func
+
 decodeFunc = do
     i <- getDrtId
     l <- getDrtLen
     b <- getByteString l
-    return Func {funcId = i, code = unpack b}
+    return $ Func i (unpack b)
 
 data ArgType = BlobArgType | InlineArgType deriving (Enum)
-data Arg = BlobArg BlobID | InlineArg String
+data Arg = BlobArg BlobID | InlineArg String deriving (Show)
 
 data Trans = Trans {
     args :: [Arg],
@@ -126,7 +129,6 @@ data TransformType = DiscardTType | IrreversibleTType | ReversibleTType | LossyT
 
 data Transform = DiscardTransform | ForwardTransform Trans | ReverseTransform Trans deriving (Show)
 
-decodeTransform :: Get Transform
 decodeTransform = do
     t <- getWord8
     case toEnum (fromIntegral t) of

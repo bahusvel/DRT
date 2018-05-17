@@ -47,3 +47,7 @@ The second type DRTT is an index structure that can be created from DRTL, this s
 # Log Format
 
 For log format all entities are sequentially appended to the end of the log. The order of entities is important. Data and medium entities shall always appear before the blobs that reference them. Blobs (both arguments and outputs) and functions must appear before the relevant transformations. In other words the reference shall always appear before the referee.
+
+# Converting Log to Tree
+
+The goal of recovery is to retrieve the primary blob for the data. All blobs for recovery purposes are either an output of (inverse) transform or located on medium.

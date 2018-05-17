@@ -60,7 +60,6 @@ void enc_drt_data(DRTData *data, unsigned char *buf);
 
 typedef struct drt_blob {
 	drt_blob_id id;
-	drt_data_id data;
 	drt_medium_id medium;
 	drt_off offset;
 	drt_off length;
