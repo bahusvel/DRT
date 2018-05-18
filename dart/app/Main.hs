@@ -17,54 +17,52 @@ decodeLog b = case runGetOrFail getEntity b of
         Right (leftover, _, a) -> a : decodeLog leftover
 
 data DRTT = DRTT {
-    dataTrees :: [DataTree],
+    dataTrees :: [TreeD],
     medium    :: [Medium],
     funcs     :: [Func]
-}
+} deriving (Show)
 
-data DataTree = DataTree {
+data TreeD = TreeD {
     drtData    :: Data,
     transforms :: [TreeT]
-}
+} deriving (Show)
 
 data TreeB = TreeB {
     drtBlob :: BlobID,
     source  :: [TreeT]
-}
+} deriving (Show)
 
 data TreeT = TreeT {
     drtTransform :: Trans,
     inBlobs      :: [TreeB]
-}
+} deriving (Show)
 
-genTreeB :: [Trans] -> BlobID -> TreeB
-genTreeB l b = TreeB b source_tts
+genTreeT :: [Trans] -> BlobID -> [TreeT]
+genTreeT l b = map (\t -> TreeT t (genTreeB l t)) source_ts
     where
-        source_ts = filter (elem b . out) l
-        source_tts = map (\t -> TreeT t  ))  source_ts
+        source_ts = filter (elem b . out) l -- transactions that output b
 
 
-genTreeT :: [Trans] -> Trans -> TreeT
-genTreeT l t = TreeT t treebs
+genTreeB :: [Trans] -> Trans -> [TreeB]
+genTreeB l t = map (\b -> TreeB b (genTreeT l b)) blob_args
     where
-        blob_args = filter (\case {BlobArg _ -> True; _ -> False}) $ map args source_t
-        treebs = map (genTreeB ts) blob_args
+        blob_args = [x | BlobArg x <- args t]
 
-genDataTree :: DRTLog -> Data -> DataTree
-genDataTree l d = DataTree d source_tts
+genTreeD :: DRTLog -> Data -> TreeD
+genTreeD l d = TreeD d (genTreeT reversible (iblobId d))
     where
-        ts = map (\(DRTTransform b) -> b) $ filter (\case {DRTTransform (ReverseTransform _) -> True; _ -> False}) l
-        source_ts = filter (elem (iblobId d) . out) ts
-        source_tts = map (\t -> TreeT t (genTreeT t)) source_ts
+        reversible = [x | (DRTTransform (ReverseTransform x)) <- l]
 
 logToTree :: DRTLog -> DRTT
-logToTree l = DRTT t m f
-    where   t = []
-            m = map (\(DRTMedium b) -> b) $ filter (\case {DRTMedium _ -> True; _ -> False}) l
-            f = map (\(DRTFunc b) -> b) $ filter (\case {DRTFunc _ -> True; _ -> False}) l
+logToTree l = DRTT t [x | DRTMedium x <- l] [x | DRTFunc x <- l]
+    where
+        t = map (genTreeD l) [x | DRTData x <- l]
 
 main :: IO ()
 main = do
     f <- BL.readFile "../test/test.drtl"
-    print $ decodeLog f
+    let l = decodeLog f
+    let t = logToTree l
+    print l
+    print t
     return ()

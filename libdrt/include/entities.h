@@ -51,6 +51,7 @@ void enc_drt_medium(DRTMedium *medium, unsigned char *buf);
 
 typedef struct drt_data {
 	drt_data_id id;
+	drt_blob_id iblobid;
 	drt_checksum checksum;
 	struct drt_tags tags;
 } DRTData;
@@ -100,7 +101,7 @@ struct drt_tran {
 	struct drt_arg *args;
 	drt_func_id func;
 	drt_inline_len out_count;
-	drt_blob_id *out_blobs;
+	struct drt_blob *out_blobs;
 };
 
 enum drt_trans_type { DISCARD, IRREVERSIBLE, REVERSIBLE, LOSSY };

@@ -93,18 +93,11 @@ void dump_fiemap(struct fiemap *fiemap, const char *filename) {
 
 drt_blob_id encode_extent(drt_data_id data, drt_medium_id medium,
 						  struct fiemap_extent *extent) {
-	DRTBlob blob = {.id = BLOB_ID++,
-					.data = data,
-					.medium = medium,
-					.offset = extent->fe_physical,
-					.length = extent->fe_length};
-
-	DRT_WRITE_ENTITY(blob, blob, DRT_LOG_FD);
 
 	return blob.id;
 }
 
-void gen_fs_drt(int fd, DRTBlob *fileblob) {
+void gen_fs_drt(int fd, DRTData *data) {
 	struct fiemap *fiemap = read_fiemap(fd);
 	if (fiemap == NULL) {
 		return;
@@ -116,6 +109,12 @@ void gen_fs_drt(int fd, DRTBlob *fileblob) {
 
 	for (int i = 0; i < fiemap->fm_mapped_extents; i++) {
 		in_blobs[i].type = BLOB;
+
+		DRTBlob blob = {.id = BLOB_ID++,
+						.medium = medium,
+						.offset = extent->fe_physical,
+						.length = extent->fe_length};
+
 		in_blobs[i].blob = encode_extent(fileblob->data, BLK_MEDIUM.id,
 										 &fiemap->fm_extents[i]);
 	}
@@ -132,10 +131,10 @@ void gen_fs_drt(int fd, DRTBlob *fileblob) {
 	DRT_WRITE_ENTITY(trans, transform, DRT_LOG_FD);
 }
 
-void gen_file_drt(const char *file) {
+void gen_file_drt(const char *path) {
 	int fd;
-	if ((fd = open(file, O_RDONLY)) < 0) {
-		fprintf(stderr, "Cannot open file %s\n", file);
+	if ((fd = open(path, O_RDONLY)) < 0) {
+		fprintf(stderr, "Cannot open file %s\n", path);
 		perror("");
 		return;
 	}
@@ -143,7 +142,7 @@ void gen_file_drt(const char *file) {
 	struct stat fstats;
 
 	if (fstat(fd, &fstats) < 0) {
-		fprintf(stderr, "Cannot stat file %s\n", file);
+		fprintf(stderr, "Cannot stat file %s\n", path);
 		perror("");
 		return;
 	}
@@ -158,21 +157,15 @@ void gen_file_drt(const char *file) {
 	}
 
 	struct drt_tags filetags = NEW_DRT_TAGS(1);
-	SET_DRT_TAG_STRING(0, file, filetags);
+	SET_DRT_TAG_STRING(0, path, filetags);
 
-	DRTMedium file_medium = {.id = MEDIUM_ID++, .tags = filetags};
-	DRT_WRITE_ENTITY(file_medium, medium, DRT_LOG_FD);
+	DRTData file = {.id = DATA_ID++,
+					.iblobid = BLOB_ID++,
+					.tags = filetags,
+					.checksum = crc};
+	DRT_WRITE_ENTITY(file, data, DRT_LOG_FD);
 
-	DRTData drtfile = {.id = DATA_ID++, .tags = filetags, .checksum = crc};
-	DRT_WRITE_ENTITY(drtfile, data, DRT_LOG_FD);
-
-	DRTBlob fileblob = {.id = BLOB_ID++,
-						.data = drtfile.id,
-						.medium = file_medium.id,
-						.length = fstats.st_size};
-	DRT_WRITE_ENTITY(fileblob, blob, DRT_LOG_FD);
-
-	gen_fs_drt(fd, &fileblob);
+	gen_fs_drt(fd, &file);
 }
 
 void syntax(char **argv) {

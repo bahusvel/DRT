@@ -50,12 +50,14 @@ void enc_drt_medium(DRTMedium *medium, unsigned char *buf) {
 
 int size_drt_data(DRTData *data) {
 	return SIZE_ENTITY_TYPE + sizeof(drt_checksum) + sizeof(drt_data_id) +
-		   size_drt_tags(&data->tags);
+		   sizeof(drt_blob_id) + size_drt_tags(&data->tags);
 }
 
 void enc_drt_data(DRTData *data, unsigned char *buf) {
 	*buf++ = (uint8_t)ENT_DATA;
 	*(drt_id *)buf = htobe64(data->id);
+	buf += sizeof(drt_id);
+	*(drt_id *)buf = htobe64(data->iblobid);
 	buf += sizeof(drt_id);
 	*(drt_checksum *)buf = htobe32(data->checksum);
 	buf += sizeof(drt_checksum);
@@ -95,14 +97,15 @@ void enc_drt_func(DRTFunc *func, unsigned char *buf) {
 
 static int size_drt_tran(struct drt_tran *tran) {
 	int a = sizeof(drt_inline_len) + sizeof(drt_inline_len) +
-			sizeof(drt_func_id) + (tran->out_count * sizeof(drt_id)) +
-			(tran->arg_count * SIZE_ARG_TYPE);
+			sizeof(drt_func_id) + (tran->arg_count * SIZE_ARG_TYPE);
 	for (int i = 0; i < tran->arg_count; i++) {
 		if (tran->args[i].type == BLOB)
 			a += sizeof(drt_id);
 		else
 			a += sizeof(drt_inline_len) + tran->args[i].direct.len;
 	}
+	for (int i = 0; i < tran->out_count; i++)
+		a += size_drt_blob(&tran->out_blobs[i]);
 	return a;
 }
 
@@ -127,7 +130,7 @@ static int enc_drt_tran(struct drt_tran *tran, unsigned char *buf) {
 	*(drt_inline_len *)buf = htobe32(tran->out_count);
 	buf += sizeof(drt_inline_len);
 	for (int i = 0; i < tran->out_count; i++) {
-		*(drt_id *)buf = htobe64(tran->out_blobs[i]);
+		enc_drt_blob(&tran->out_blobs[i], buf);
 		buf += sizeof(drt_id);
 	}
 	return buf - orig;

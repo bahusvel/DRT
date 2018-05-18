@@ -15,6 +15,7 @@ module Entities (
 import           Control.Monad
 import           Data.Binary.Get
 import           Data.ByteString.Char8 (unpack)
+import           Data.Optional
 import           Data.Word
 
 
@@ -71,11 +72,12 @@ decodeMedium = liftM2 Medium getDrtId decodeTags
 data Data = Data {
     dataId   :: DataID,
     iblobId  :: BlobID, -- This is for first implicit data blob
+    size     :: Int,
     checksum :: Checksum,
     dataTags :: [Tag]
 } deriving (Show)
 
-decodeData =  liftM4 Data getDrtId getDrtId (fromIntegral <$> getWord32be) decodeTags
+decodeData =  liftM5 Data getDrtId getDrtId getDrtLen (fromIntegral <$> getWord32be) decodeTags
 
 data Blob = Blob {
     blobId     :: BlobID,
@@ -104,7 +106,7 @@ data Arg = BlobArg BlobID | InlineArg String deriving (Show)
 data Trans = Trans {
     args :: [Arg],
     func :: FuncID,
-    out  :: [BlobID]
+    out  :: [BlobId]
 } deriving (Show)
 
 decodeTrans :: Get Trans
@@ -125,14 +127,21 @@ decodeTrans = do
     o <- replicateM ol getDrtId
     return Trans {args = a, func = f, out = o}
 
-data TransformType = DiscardTType | IrreversibleTType | ReversibleTType | LossyTType deriving (Enum)
+data TransformType = Discard | Irreversible | Reversible | Lossy deriving (Enum)
 
-data Transform = DiscardTransform | ForwardTransform Trans | ReverseTransform Trans deriving (Show)
+data Transform = Transform {
+    ttype    :: TransformType,
+    produces :: [Blob],
+    reverse  :: Maybe Trans
+} deriving Show
 
 decodeTransform = do
-    t <- getWord8
-    case toEnum (fromIntegral t) of
-        DiscardTType      -> return DiscardTransform
-        IrreversibleTType -> ForwardTransform <$> decodeTrans
-        ReversibleTType   -> ReverseTransform <$> decodeTrans
-        LossyTType        -> ReverseTransform <$> decodeTrans
+    ty <- getWord8
+    ol <- getDrtLen
+    o <- replicateM ol getDrtBlob
+    tr <- case toEnum (fromIntegral t) of
+        Discard      -> Nothing
+        Irreversible -> Nothing
+        Reversible   -> Just <$> decodeTrans
+        Lossy        -> Just <$> decodeTrans
+    return Transform ty o tr
