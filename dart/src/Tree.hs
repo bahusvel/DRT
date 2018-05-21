@@ -1,7 +1,9 @@
 module Tree (
     logToTree,
-    DRTT (dataTrees),
-    TreeD (TreeD),
+    DRTT (dataTrees, blobs),
+    TreeD (TreeD, drtData, transforms),
+    TreeB (source, drtBlob),
+    TreeT (inBlobs, drtTransform)
 ) where
 
 import           Data.Binary.Get
@@ -12,7 +14,8 @@ import           Entities
 data DRTT = DRTT {
     dataTrees :: [TreeD],
     mediums   :: [Medium],
-    funcs     :: [Func]
+    funcs     :: [Func],
+    blobs     :: [Blob]
 } deriving (Show)
 
 data TreeD = TreeD {
@@ -22,12 +25,12 @@ data TreeD = TreeD {
 
 data TreeB = TreeB {
     drtBlob :: BlobID,
-    source  :: [TreeT]
+    source  :: [TreeT] -- These are potential sources
 } deriving (Show)
 
 data TreeT = TreeT {
     drtTransform :: Trans,
-    inBlobs      :: [TreeB]
+    inBlobs      :: [TreeB] -- These are required argument blobs
 } deriving (Show)
 
 genTreeT :: [Trans] -> BlobID -> [TreeT]
@@ -47,6 +50,7 @@ genTreeD l d = TreeD d (genTreeT reversible (iblobId d))
         reversible = [x | (DRTTransform (Transform _ _ (Just x))) <- l]
 
 logToTree :: DRTLog -> DRTT
-logToTree l = DRTT t [x | DRTMedium x <- l] [x | DRTFunc x <- l]
+logToTree l = DRTT t [x | DRTMedium x <- l] [x | DRTFunc x <- l] t_blobs
     where
         t = map (genTreeD l) [x | DRTData x <- l]
+        t_blobs = concat $ [d | DRTTransform (Transform _ d _) <- l]

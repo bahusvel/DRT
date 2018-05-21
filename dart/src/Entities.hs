@@ -3,13 +3,15 @@ module Entities (
     DRTEntity (..),
     Medium,
     Data (iblobId, dataId, dataTags),
-    Blob,
+    Blob(blobId, medium, offset, blobLength),
     Func,
-    Transform(Transform),
-    Trans (out, args),
-    Arg(BlobArg),
+    Transform(Transform, declares),
+    Trans (out, func, args),
+    Arg(BlobArg,InlineArg),
     BlobID,
+    MediumID,
     DataID,
+    FuncID,
     DRTLog
 ) where
 
