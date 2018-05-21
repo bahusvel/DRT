@@ -1,7 +1,7 @@
 BUILD_DIR=build
 SRC = $(wildcard *.c)
 OBJ = $(patsubst %.c, $(BUILD_DIR)/%.o, $(SRC))
-CFLAGS=-Iinclude
+CFLAGS=-Iinclude -g
 
 $(BUILD_DIR)/%.o: %.c
 	gcc $(CFLAGS) -c $< -o $@

@@ -16,7 +16,6 @@
 
 static drt_data_id DATA_ID = 0;
 static drt_blob_id BLOB_ID = 0;
-static drt_medium_id MEDIUM_ID = 1;
 
 DRTMedium BLK_MEDIUM = (DRTMedium){.id = 0, .tags = {0, NULL}};
 
@@ -91,12 +90,6 @@ void dump_fiemap(struct fiemap *fiemap, const char *filename) {
 		write(fd, _buff, _size);                                               \
 	}
 
-drt_blob_id encode_extent(drt_data_id data, drt_medium_id medium,
-						  struct fiemap_extent *extent) {
-
-	return blob.id;
-}
-
 void gen_fs_drt(int fd, DRTData *data) {
 	struct fiemap *fiemap = read_fiemap(fd);
 	if (fiemap == NULL) {
@@ -106,29 +99,37 @@ void gen_fs_drt(int fd, DRTData *data) {
 	dump_fiemap(fiemap, "file");
 
 	struct drt_arg *in_blobs = NEW_DRT_ARGS(fiemap->fm_mapped_extents);
+	struct drt_blob *declares =
+		malloc(sizeof(DRTBlob) * fiemap->fm_mapped_extents);
 
 	for (int i = 0; i < fiemap->fm_mapped_extents; i++) {
 		in_blobs[i].type = BLOB;
 
-		DRTBlob blob = {.id = BLOB_ID++,
-						.medium = medium,
-						.offset = extent->fe_physical,
-						.length = extent->fe_length};
+		struct fiemap_extent *extent = &fiemap->fm_extents[i];
 
-		in_blobs[i].blob = encode_extent(fileblob->data, BLK_MEDIUM.id,
-										 &fiemap->fm_extents[i]);
+		declares[i] = (DRTBlob){.id = BLOB_ID++,
+								.medium = BLK_MEDIUM.id,
+								.offset = extent->fe_physical,
+								.length = extent->fe_length};
+
+		in_blobs[i].blob = declares[i].id;
 	}
 
+	struct drt_tran tran = {
+		.arg_count = fiemap->fm_mapped_extents,
+		.args = in_blobs,
+		.func = 1,
+		.out_count = 1,
+		.out_blobs = &data->iblobid,
+	};
+
 	DRTTransform trans = {.type = REVERSIBLE,
-						  .reverse = {
-							  .arg_count = fiemap->fm_mapped_extents,
-							  .args = in_blobs,
-							  .func = 1,
-							  .out_count = 1,
-							  .out_blobs = &fileblob->id,
-						  }};
+						  .dec_len = fiemap->fm_mapped_extents,
+						  .declares = declares,
+						  .reverse = &tran};
 
 	DRT_WRITE_ENTITY(trans, transform, DRT_LOG_FD);
+	free(declares);
 }
 
 void gen_file_drt(const char *path) {
@@ -161,6 +162,7 @@ void gen_file_drt(const char *path) {
 
 	DRTData file = {.id = DATA_ID++,
 					.iblobid = BLOB_ID++,
+					.size = fstats.st_size,
 					.tags = filetags,
 					.checksum = crc};
 	DRT_WRITE_ENTITY(file, data, DRT_LOG_FD);

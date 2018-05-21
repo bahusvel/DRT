@@ -38,6 +38,7 @@ executables:
     - -with-rtsopts=-N
     dependencies:
     - dart
+    - cmdargs
 
 tests:
   dart-test:

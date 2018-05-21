@@ -13,13 +13,7 @@ typedef int64_t drt_off;
 typedef uint32_t drt_inline_len;
 typedef uint32_t drt_checksum;
 
-enum drt_entity_type {
-	ENT_BLOB,
-	ENT_FUNC,
-	ENT_DATA,
-	ENT_TRANSFORM,
-	ENT_MEDIUM
-};
+enum drt_entity_type { ENT_FUNC, ENT_DATA, ENT_TRANSFORM, ENT_MEDIUM };
 
 #define SIZE_ENTITY_TYPE 1
 #define SIZE_ARG_TYPE 1
@@ -52,6 +46,7 @@ void enc_drt_medium(DRTMedium *medium, unsigned char *buf);
 typedef struct drt_data {
 	drt_data_id id;
 	drt_blob_id iblobid;
+	drt_off size;
 	drt_checksum checksum;
 	struct drt_tags tags;
 } DRTData;
@@ -101,17 +96,16 @@ struct drt_tran {
 	struct drt_arg *args;
 	drt_func_id func;
 	drt_inline_len out_count;
-	struct drt_blob *out_blobs;
+	drt_blob_id *out_blobs;
 };
 
 enum drt_trans_type { DISCARD, IRREVERSIBLE, REVERSIBLE, LOSSY };
 
 typedef struct drt_transform {
 	enum drt_trans_type type;
-	union {
-		struct drt_tran forward;
-		struct drt_tran reverse;
-	};
+	drt_inline_len dec_len;
+	struct drt_blob *declares;
+	struct drt_tran *reverse;
 } DRTTransform;
 
 int size_drt_transform(DRTTransform *trans);

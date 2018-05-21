@@ -50,7 +50,7 @@ void enc_drt_medium(DRTMedium *medium, unsigned char *buf) {
 
 int size_drt_data(DRTData *data) {
 	return SIZE_ENTITY_TYPE + sizeof(drt_checksum) + sizeof(drt_data_id) +
-		   sizeof(drt_blob_id) + size_drt_tags(&data->tags);
+		   sizeof(drt_blob_id) + sizeof(drt_off) + size_drt_tags(&data->tags);
 }
 
 void enc_drt_data(DRTData *data, unsigned char *buf) {
@@ -59,18 +59,19 @@ void enc_drt_data(DRTData *data, unsigned char *buf) {
 	buf += sizeof(drt_id);
 	*(drt_id *)buf = htobe64(data->iblobid);
 	buf += sizeof(drt_id);
+	*(drt_off *)buf = htobe64(data->size);
+	buf += sizeof(drt_off);
 	*(drt_checksum *)buf = htobe32(data->checksum);
 	buf += sizeof(drt_checksum);
 	enc_drt_tags(&data->tags, buf);
 }
 
 int size_drt_blob(DRTBlob *blob) {
-	return SIZE_ENTITY_TYPE + sizeof(drt_blob_id) + sizeof(drt_medium_id) +
-		   sizeof(drt_off) + sizeof(drt_off);
+	return sizeof(drt_blob_id) + sizeof(drt_medium_id) + sizeof(drt_off) +
+		   sizeof(drt_off);
 }
 
 void enc_drt_blob(DRTBlob *blob, unsigned char *buf) {
-	*buf++ = (uint8_t)ENT_BLOB;
 	*(drt_id *)buf = htobe64(blob->id);
 	buf += sizeof(drt_id);
 	*(drt_id *)buf = htobe64(blob->medium);
@@ -97,15 +98,14 @@ void enc_drt_func(DRTFunc *func, unsigned char *buf) {
 
 static int size_drt_tran(struct drt_tran *tran) {
 	int a = sizeof(drt_inline_len) + sizeof(drt_inline_len) +
-			sizeof(drt_func_id) + (tran->arg_count * SIZE_ARG_TYPE);
+			sizeof(drt_func_id) + (tran->arg_count * SIZE_ARG_TYPE) +
+			(tran->out_count * sizeof(drt_blob_id));
 	for (int i = 0; i < tran->arg_count; i++) {
 		if (tran->args[i].type == BLOB)
 			a += sizeof(drt_id);
 		else
 			a += sizeof(drt_inline_len) + tran->args[i].direct.len;
 	}
-	for (int i = 0; i < tran->out_count; i++)
-		a += size_drt_blob(&tran->out_blobs[i]);
 	return a;
 }
 
@@ -130,41 +130,30 @@ static int enc_drt_tran(struct drt_tran *tran, unsigned char *buf) {
 	*(drt_inline_len *)buf = htobe32(tran->out_count);
 	buf += sizeof(drt_inline_len);
 	for (int i = 0; i < tran->out_count; i++) {
-		enc_drt_blob(&tran->out_blobs[i], buf);
+		*(drt_id *)buf = htobe64(tran->out_blobs[i]);
 		buf += sizeof(drt_id);
 	}
 	return buf - orig;
 }
 
 int size_drt_transform(DRTTransform *trans) {
-	int a = SIZE_ENTITY_TYPE + SIZE_TRANS_TYPE;
-	switch (trans->type) {
-	case LOSSY:
-	case REVERSIBLE:
-		a += size_drt_tran(&trans->reverse);
-		break;
-	case IRREVERSIBLE:
-		a += size_drt_tran(&trans->forward);
-		break;
-	case DISCARD:
-		break;
-	}
-
+	int a = SIZE_ENTITY_TYPE + SIZE_TRANS_TYPE + sizeof(drt_inline_len);
+	if (trans->reverse != NULL)
+		a += size_drt_tran(trans->reverse);
+	for (int i = 0; i < trans->dec_len; i++)
+		a += size_drt_blob(&trans->declares[i]);
 	return a;
 }
 
 void enc_drt_transform(DRTTransform *trans, unsigned char *buf) {
 	*buf++ = (uint8_t)ENT_TRANSFORM;
 	*buf++ = (uint8_t)trans->type;
-	switch (trans->type) {
-	case LOSSY:
-	case REVERSIBLE:
-		enc_drt_tran(&trans->reverse, buf);
-		break;
-	case IRREVERSIBLE:
-		enc_drt_tran(&trans->forward, buf);
-		break;
-	case DISCARD:
-		break;
+	*(drt_inline_len *)buf = htobe32(trans->dec_len);
+	buf += sizeof(drt_inline_len);
+	for (int i = 0; i < trans->dec_len; i++) {
+		enc_drt_blob(&trans->declares[i], buf);
+		buf += size_drt_blob(&trans->declares[i]);
 	}
+	if (trans->reverse != NULL)
+		enc_drt_tran(trans->reverse, buf);
 }

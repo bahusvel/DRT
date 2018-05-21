@@ -1,26 +1,22 @@
 module Entities (
-    someFunc,
     getEntity,
     DRTEntity (..),
     Medium,
-    Data (iblobId),
+    Data (iblobId, dataId, dataTags),
     Blob,
     Func,
-    Transform (ReverseTransform),
+    Transform(Transform),
     Trans (out, args),
     Arg(BlobArg),
-    BlobID
+    BlobID,
+    DataID,
+    DRTLog
 ) where
 
 import           Control.Monad
 import           Data.Binary.Get
 import           Data.ByteString.Char8 (unpack)
-import           Data.Optional
 import           Data.Word
-
-
-someFunc :: IO ()
-someFunc = putStrLn "someFunc"
 
 type ID = Int
 type BlobID = ID
@@ -30,15 +26,16 @@ type FuncID = ID
 type Tag = String
 type Checksum = Int
 
-data EntityType = BlobEntity | FuncEntity | DataEntity | TransformEntity | MediumEntity deriving (Enum, Show)
+data EntityType = FuncEntity | DataEntity | TransformEntity | MediumEntity deriving (Enum, Show)
 
-data DRTEntity = DRTBlob Blob | DRTFunc Func | DRTData Data | DRTTransform Transform | DRTMedium Medium deriving (Show)
+data DRTEntity = DRTFunc Func | DRTData Data | DRTTransform Transform | DRTMedium Medium deriving (Show)
+
+type DRTLog = [DRTEntity]
 
 getEntity :: Get DRTEntity
 getEntity = do
         entity <- toEnum . fromIntegral <$> getWord8
         case entity of
-            BlobEntity      -> DRTBlob <$> decodeBlob
             FuncEntity      -> DRTFunc <$> decodeFunc
             DataEntity      -> DRTData <$> decodeData
             TransformEntity -> DRTTransform <$> decodeTransform
@@ -77,7 +74,7 @@ data Data = Data {
     dataTags :: [Tag]
 } deriving (Show)
 
-decodeData =  liftM5 Data getDrtId getDrtId getDrtLen (fromIntegral <$> getWord32be) decodeTags
+decodeData =  liftM5 Data getDrtId getDrtId getDrtOffset (fromIntegral <$> getWord32be) decodeTags
 
 data Blob = Blob {
     blobId     :: BlobID,
@@ -106,7 +103,7 @@ data Arg = BlobArg BlobID | InlineArg String deriving (Show)
 data Trans = Trans {
     args :: [Arg],
     func :: FuncID,
-    out  :: [BlobId]
+    out  :: [BlobID]
 } deriving (Show)
 
 decodeTrans :: Get Trans
@@ -125,23 +122,24 @@ decodeTrans = do
     f <- getDrtId
     ol <- getDrtLen
     o <- replicateM ol getDrtId
-    return Trans {args = a, func = f, out = o}
+    return $ Trans a f o
 
-data TransformType = Discard | Irreversible | Reversible | Lossy deriving (Enum)
+data TransformType = Discard | Irreversible | Reversible | Lossy deriving (Show, Enum)
 
 data Transform = Transform {
     ttype    :: TransformType,
-    produces :: [Blob],
+    declares :: [Blob],
     reverse  :: Maybe Trans
 } deriving Show
 
 decodeTransform = do
     ty <- getWord8
+    let t = toEnum $ fromIntegral ty
     ol <- getDrtLen
-    o <- replicateM ol getDrtBlob
-    tr <- case toEnum (fromIntegral t) of
-        Discard      -> Nothing
-        Irreversible -> Nothing
+    o <- replicateM ol decodeBlob
+    tr <- case t of
+        Discard      -> return Nothing
+        Irreversible -> return Nothing
         Reversible   -> Just <$> decodeTrans
         Lossy        -> Just <$> decodeTrans
-    return Transform ty o tr
+    return $ Transform t o tr
