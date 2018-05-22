@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <libgen.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,7 +22,7 @@ DRTMedium BLK_MEDIUM = (DRTMedium){.id = 0, .tags = {0, NULL}};
 
 int DRT_LOG_FD = 0;
 
-uint32_t crc32c(uint32_t crc, const uint8_t *data, unsigned int length);
+uint32_t crc32(uint32_t crc, const uint8_t *data, unsigned int length);
 
 struct fiemap *read_fiemap(int fd) {
 	struct fiemap *fiemap;
@@ -96,6 +97,8 @@ void gen_fs_drt(int fd, DRTData *data) {
 		return;
 	}
 
+	size_t remaining_length = data->size;
+
 	dump_fiemap(fiemap, "file");
 
 	struct drt_arg *in_blobs = NEW_DRT_ARGS(fiemap->fm_mapped_extents);
@@ -110,9 +113,12 @@ void gen_fs_drt(int fd, DRTData *data) {
 		declares[i] = (DRTBlob){.id = BLOB_ID++,
 								.medium = BLK_MEDIUM.id,
 								.offset = extent->fe_physical,
-								.length = extent->fe_length};
+								.length = remaining_length < extent->fe_length
+											  ? remaining_length
+											  : extent->fe_length};
 
 		in_blobs[i].blob = declares[i].id;
+		remaining_length -= extent->fe_length;
 	}
 
 	struct drt_tran tran = {
@@ -153,18 +159,32 @@ void gen_file_drt(const char *path) {
 
 	for (long i = 0; i < fstats.st_size; i += 4096) {
 		int n = read(fd, &buf, 4096);
-		crc = crc32c(crc, buf, 4096);
+		crc = crc32(crc, buf, 4096);
 		i += n;
 	}
 
-	struct drt_tags filetags = NEW_DRT_TAGS(1);
-	SET_DRT_TAG_STRING(0, path, filetags);
+	char *pathcp = alloca(strlen(path));
+	strcpy(pathcp, path);
+	char *bs_name = basename(pathcp);
+
+	char *name_tag = alloca(strlen("name:") + strlen(bs_name) + 1);
+	strcpy(name_tag, "name:");
+	strcat(name_tag, bs_name);
+
+	char *path_tag = alloca(strlen("path:") + strlen(bs_name) + 1);
+	strcpy(path_tag, "path:");
+	strcat(path_tag, path);
+
+	struct drt_tags filetags = NEW_DRT_TAGS(2);
+	SET_DRT_TAG_STRING(0, name_tag, filetags);
+	SET_DRT_TAG_STRING(1, path_tag, filetags);
 
 	DRTData file = {.id = DATA_ID++,
 					.iblobid = BLOB_ID++,
 					.size = fstats.st_size,
 					.tags = filetags,
 					.checksum = crc};
+
 	DRT_WRITE_ENTITY(file, data, DRT_LOG_FD);
 
 	gen_fs_drt(fd, &file);

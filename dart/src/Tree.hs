@@ -10,6 +10,7 @@ import           Data.Binary.Get
 import qualified Data.ByteString.Lazy as BL
 import           Data.List
 import           Entities
+import           Log
 
 data DRTT = DRTT {
     dataTrees :: [TreeD],
@@ -53,4 +54,4 @@ logToTree :: DRTLog -> DRTT
 logToTree l = DRTT t [x | DRTMedium x <- l] [x | DRTFunc x <- l] t_blobs
     where
         t = map (genTreeD l) [x | DRTData x <- l]
-        t_blobs = concat $ [d | DRTTransform (Transform _ d _) <- l]
+        t_blobs = concat [d | DRTTransform (Transform _ d _) <- l]

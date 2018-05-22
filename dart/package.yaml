@@ -24,6 +24,9 @@ dependencies:
 - binary
 - binary-strict
 - bytestring
+- directory
+- digest
+- containers
 
 library:
   source-dirs: src
