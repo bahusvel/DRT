@@ -51,7 +51,7 @@ doRecover :: Dart -> IO ()
 doRecover (Recover file ids mds) = do
     t <- loadAndConvert file
     ms <- mapM (\(i, p) ->  liftM2 (,) (return i) (BL.readFile p)) mds
-    let context = RecoveryContext (Map.fromList ms) (Map.fromList funcTable) t
+    let context = RecoveryContext (Map.fromList ms) (Map.fromList funcTable) t True
     mapM_ (recoverData context) ids
 
 main :: IO ()

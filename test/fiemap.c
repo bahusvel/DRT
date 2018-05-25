@@ -157,9 +157,9 @@ void gen_file_drt(const char *path) {
 	uint32_t crc = 0;
 	uint8_t buf[4096];
 
-	for (long i = 0; i < fstats.st_size; i += 4096) {
-		int n = read(fd, &buf, 4096);
-		crc = crc32(crc, buf, 4096);
+	for (long i = 0; i < fstats.st_size;) {
+		int n = read(fd, buf, 4096);
+		crc = crc32(crc, buf, n);
 		i += n;
 	}
 
@@ -203,7 +203,7 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
-	DRT_LOG_FD = open(argv[1], O_APPEND | O_CREAT | O_WRONLY);
+	DRT_LOG_FD = open(argv[1], O_APPEND | O_CREAT | O_WRONLY, 0755);
 
 	if (DRT_LOG_FD < 0) {
 		perror("Cannot open drt_log_file");

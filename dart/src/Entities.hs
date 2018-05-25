@@ -1,12 +1,14 @@
 module Entities where
 
+import           Data.Word
+
 type ID = Int
 type BlobID = ID
 type DataID = ID
 type MediumID = ID
 type FuncID = ID
 type Tag = String
-type Checksum = Int
+type Checksum = Word32
 
 data Medium = Medium {
     mediumId   :: MediumID,

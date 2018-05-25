@@ -21,9 +21,10 @@ import           Tree
 type RecoveryMedium = BL.ByteString
 
 data RecoveryContext = RecoveryContext {
-    mediums :: Map.Map MediumID RecoveryMedium,
-    funcs   :: Map.Map FuncID RecFunc,
-    drtt    :: DRTT
+    mediums         :: Map.Map MediumID RecoveryMedium,
+    funcs           :: Map.Map FuncID RecFunc,
+    drtt            :: DRTT,
+    verifyIntegrity :: Bool
 }
 
 data RecoveryBlob = RecoveryBlob {
@@ -75,14 +76,17 @@ nameForData d = fromMaybe (show (dataId d) ++ ".data") ("name" `lookup` split )
     where
         split = map (splitOn ':') $ dataTags d
 
+validateDataBlob :: Data -> RecoveryBlob -> Bool
+validateDataBlob d b = crc32 (blobData b) == checksum d
+
 recoverData :: RecoveryContext -> DataID -> IO ()
 recoverData c d = do
     let dt = dataTrees (drtt c) !! d
     let dataBlobId = iblobId $ drtData dt
     createDirectoryIfMissing True "./data"
     let rcblobs = map (\d -> processTransform c d dataBlobId) $ transforms dt
-    mapM_ (\case
-        Nothing -> print $ "Recovery of " ++ show d ++ " failed."
-        Just b  -> BL.writeFile ("./data/" ++ nameForData (drtData dt)) (blobData b)
-        ) rcblobs
+    let good_blobs = filter (validateDataBlob (drtData dt)) $ catMaybes rcblobs
+    case good_blobs of
+        []    -> print $ "Recovery of " ++ show d ++ " failed."
+        (b:_) -> BL.writeFile ("./data/" ++ nameForData (drtData dt)) $ blobData b
     return ()

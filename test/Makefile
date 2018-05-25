@@ -13,3 +13,8 @@ block_device:
 		mkfs.ext4 block.raw \
 	)
 	mountpoint ext4fs || sudo mount block.raw ext4fs
+
+test_crc32:
+	make -C ../libdrt/ compile
+	gcc crc32_test.c -L../libdrt/build -ldrt -o crc32
+	./crc32
