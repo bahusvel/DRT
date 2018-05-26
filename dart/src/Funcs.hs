@@ -5,7 +5,7 @@ module Funcs (
 ) where
 
 import qualified Data.ByteString.Lazy as BL
-import           Entities             (FuncID)
+type FuncID = Int
 
 type FuncBlob = BL.ByteString
 data RecArg = RecArgBlob FuncBlob | RecArgInline String

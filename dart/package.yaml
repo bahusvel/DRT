@@ -27,6 +27,7 @@ dependencies:
 - directory
 - digest
 - containers
+- hint
 
 library:
   source-dirs: src
