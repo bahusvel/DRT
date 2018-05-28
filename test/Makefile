@@ -2,8 +2,8 @@ test_fiemap: block_device fiemap.c
 	rm -rf test.drtl
 	make -C ../libdrt/ compile
 	gcc -g -I../libdrt/include fiemap.c -o fiemap -L../libdrt/build -ldrt
-	cp fiemap.c ext4fs
-	./fiemap test.drtl ext4fs/fiemap.c
+	cp -rfx ../* ext4fs
+	./fiemap test.drtl `find ext4fs/ -type f`
 	hexdump -C test.drtl
 
 block_device:

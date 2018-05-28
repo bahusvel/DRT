@@ -171,7 +171,7 @@ void gen_file_drt(const char *path) {
 	strcpy(name_tag, "name:");
 	strcat(name_tag, bs_name);
 
-	char *path_tag = alloca(strlen("path:") + strlen(bs_name) + 1);
+	char *path_tag = alloca(strlen("path:") + strlen(path) + 1);
 	strcpy(path_tag, "path:");
 	strcat(path_tag, path);
 

@@ -87,6 +87,8 @@ recoverData c d = do
     let rcblobs = map (\d -> processTransform c d dataBlobId) $ transforms dt
     let good_blobs = filter (validateDataBlob (drtData dt)) $ catMaybes rcblobs
     case good_blobs of
-        []    -> print $ "Recovery of " ++ show d ++ " failed."
-        (b:_) -> BL.writeFile ("./data/" ++ nameForData (drtData dt)) $ blobData b
+        []    -> putStrLn $ "Recovery of " ++ show d ++ " failed."
+        (b:_) -> do
+            BL.writeFile ("./data/" ++ nameForData (drtData dt)) $ blobData b
+            putStrLn $ "Recovery of " ++ show d ++ " succesful."
     return ()
