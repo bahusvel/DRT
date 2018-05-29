@@ -1,10 +1,22 @@
-test_fiemap: block_device fiemap.c
-	rm -rf test.drtl
+USB=/dev/sdb
+
+build_fiemap: fiemap.c
 	make -C ../libdrt/ compile
 	gcc -g -I../libdrt/include fiemap.c -o fiemap -L../libdrt/build -ldrt
+
+test_fiemap: block_device build_fiemap
+	rm -rf test.drtl
 	cp -rfx ../* ext4fs
 	./fiemap test.drtl `find ext4fs/ -type f`
 	hexdump -C test.drtl
+
+usb_device:
+	sh format_disk.sh $(USB)
+	partprobe
+
+corrupt_mbr:
+	sudo dd if=/dev/zero of=$(USB) bs=512 count=1
+	partprobe
 
 block_device:
 	stat block.raw > /dev/null || ( \

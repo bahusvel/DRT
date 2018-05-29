@@ -1,8 +1,9 @@
 module Entities where
 
+import           Data.Int
 import           Data.Word
 
-type ID = Int
+type ID = Int64
 type BlobID = ID
 type DataID = ID
 type MediumID = ID
@@ -18,7 +19,7 @@ data Medium = Medium {
 data Data = Data {
     dataId   :: DataID,
     iblobId  :: BlobID, -- This is for first implicit data blob
-    size     :: Int,
+    size     :: Int64,
     checksum :: Checksum,
     dataTags :: [Tag]
 } deriving (Show)
@@ -26,8 +27,8 @@ data Data = Data {
 data Blob = Blob {
     blobId     :: BlobID,
     medium     :: MediumID,
-    offset     :: Int,
-    blobLength :: Int
+    offset     :: Int64,
+    blobLength :: Int64
 } deriving (Show)
 
 data Func = Func {

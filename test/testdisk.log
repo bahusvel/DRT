@@ -1,0 +1,47 @@
+
+
+Tue May 29 17:38:46 2018
+Command line: TestDisk
+
+TestDisk 7.0, Data Recovery Utility, April 2015
+Christophe GRENIER <grenier@cgsecurity.org>
+http://www.cgsecurity.org
+OS: Linux, kernel 4.14.34-1-MANJARO (#1 SMP PREEMPT Thu Apr 12 17:26:43 UTC 2018) x86_64
+Compiler: GCC 6.3
+Compilation date: 2017-03-29T18:57:40
+ext2fs lib: 1.44.1, ntfs lib: libntfs-3g, reiserfs lib: 0.3.0.5, ewf lib: none, curses lib: ncurses 6.0
+/dev/sda: LBA, HPA, LBA48 support
+/dev/sda: size       3907029168 sectors
+/dev/sda: user_max   3907029168 sectors
+/dev/sda: native_max 3907029168 sectors
+Warning: can't get size for Disk /dev/mapper/control - 0 B - 0 sectors, sector size=512
+Hard disk list
+Disk /dev/sda - 2000 GB / 1863 GiB - CHS 243201 255 63, sector size=512 - WDC WD2003FZEX-00Z4SA0, S/N:WD-WCC134PA014S, FW:01.01A01
+Disk /dev/sdb - 31 GB / 28 GiB - CHS 29574 64 32, sector size=512 - USB3.0 FLASH DRIVE, FW:PMAP
+
+Partition table type default to Intel
+Disk /dev/sdb - 31 GB / 28 GiB - USB3.0 FLASH DRIVE
+Partition table type: Intel
+
+Analyse Disk /dev/sdb - 31 GB / 28 GiB - CHS 29574 64 32
+Current partition structure:
+
+Partition sector doesn't have the endmark 0xAA55
+
+search_part()
+Disk /dev/sdb - 31 GB / 28 GiB - CHS 29574 64 32
+Search for partition aborted
+
+Results
+
+interface_write()
+ 
+No partition found or selected for recovery
+simulate write!
+
+write_mbr_i386: starting...
+Store new MBR code
+write_all_log_i386: starting...
+No extended partition
+
+TestDisk exited normally.

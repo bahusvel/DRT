@@ -99,8 +99,6 @@ void gen_fs_drt(int fd, DRTData *data) {
 
 	size_t remaining_length = data->size;
 
-	dump_fiemap(fiemap, "file");
-
 	struct drt_arg *in_blobs = NEW_DRT_ARGS(fiemap->fm_mapped_extents);
 	struct drt_blob *declares =
 		malloc(sizeof(DRTBlob) * fiemap->fm_mapped_extents);
@@ -136,6 +134,9 @@ void gen_fs_drt(int fd, DRTData *data) {
 
 	DRT_WRITE_ENTITY(trans, transform, DRT_LOG_FD);
 	free(declares);
+
+	dump_fiemap(fiemap, "file");
+	free(fiemap);
 }
 
 void gen_file_drt(const char *path) {

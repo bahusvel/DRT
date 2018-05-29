@@ -8,6 +8,7 @@ import           Control.Monad
 import           Data.Binary.Get
 import           Data.ByteString.Char8 (unpack)
 import qualified Data.ByteString.Lazy  as BL
+import           Data.Int
 import           Data.Word
 import           Entities
 
@@ -40,7 +41,7 @@ getDrtId = fromIntegral <$> getInt64be
 getDrtLen :: Get Int
 getDrtLen = fromIntegral <$> getInt32be
 
-getDrtOffset :: Get Int
+getDrtOffset :: Get Int64
 getDrtOffset = fromIntegral <$> getInt64be
 
 decodeTags :: Get [Tag]

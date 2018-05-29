@@ -9,7 +9,7 @@ typedef drt_id drt_func_id;
 typedef drt_id drt_data_id;
 typedef drt_id drt_medium_id;
 
-typedef int64_t drt_off;
+typedef uint64_t drt_off;
 typedef uint32_t drt_inline_len;
 typedef uint32_t drt_checksum;
 

@@ -5,6 +5,7 @@ module Main where
 import           Control.Monad
 import           Data.Binary.Get
 import qualified Data.ByteString.Lazy   as BL
+import           Data.Int
 import           Data.List
 import qualified Data.Map.Strict        as Map
 import           Data.Maybe
@@ -27,8 +28,8 @@ data Dart = List {
     entity :: ListModes
 } | Recover {
     drt      :: FilePath,
-    ids      :: [Int],
-    mediums  :: [(Int, FilePath)],
+    ids      :: [Int64],
+    mediums  :: [(Int64, FilePath)],
     noVerify :: Bool
 } deriving (Show, CA.Data, Typeable)
 
@@ -65,11 +66,11 @@ doList (List file entity) = do
                 ) $ T.mediums t
 
 
-getBlobData :: Blob -> [(Int, Handle)] -> IO BL.ByteString
+getBlobData :: Blob -> [(Int64, Handle)] -> IO BL.ByteString
 getBlobData b mh = do
     let h = fromJust $ medium b `lookup` mh
     hSeek h AbsoluteSeek (fromIntegral (offset b))
-    BL.hGet h (blobLength b)
+    BL.hGet h $ fromIntegral $ blobLength b
 
 doRecover :: Dart -> IO ()
 doRecover (Recover file ids mds dv) = do
@@ -79,7 +80,7 @@ doRecover (Recover file ids mds dv) = do
     let bs = filter (\b -> medium b `elem` mids) $ blobs t
     availBlobs <- mapM (\b -> liftM2 (,) (return (blobId b)) (getBlobData b mhandles)) bs
     let context = RecoveryContext (Map.fromList availBlobs) (Map.fromList funcTable) t (not dv)
-    mapM_ (recoverData context) ids
+    mapM_ (recoverData context . fromIntegral) ids
 
 main :: IO ()
 main = do

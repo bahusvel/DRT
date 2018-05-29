@@ -82,7 +82,7 @@ validateDataBlob d b = crc32 (blobData b) == checksum d
 
 recoverData :: RecoveryContext -> DataID -> IO ()
 recoverData ctx d = do
-    let dt = dataTrees (drtt ctx) !! d
+    let dt = dataTrees (drtt ctx) !! fromIntegral d
     let dataBlobId = iblobId $ drtData dt
     createDirectoryIfMissing True "./data"
     let recBlobs =  map (\d -> processTransform ctx d dataBlobId) $ transforms dt
