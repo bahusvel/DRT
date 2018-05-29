@@ -9,6 +9,7 @@ module Recovery (
 
 import qualified Data.ByteString.Lazy as BL
 import           Data.Digest.CRC32
+import           Data.Either
 import           Data.List
 import qualified Data.Map.Strict      as Map
 import           Data.Maybe
@@ -16,12 +17,13 @@ import           Entities
 import qualified Entities             as E
 import           Funcs
 import           System.Directory
+import           Text.Printf
 import           Tree
 
 type RecoveryMedium = BL.ByteString
 
 data RecoveryContext = RecoveryContext {
-    mediums         :: Map.Map MediumID RecoveryMedium,
+    availableBlobs  :: Map.Map BlobID BL.ByteString,
     funcs           :: Map.Map FuncID RecFunc,
     drtt            :: DRTT,
     verifyIntegrity :: Bool
@@ -32,16 +34,16 @@ data RecoveryBlob = RecoveryBlob {
     blobData       :: BL.ByteString
 } deriving (Eq, Show)
 
-bsRange :: BL.ByteString -> Int -> Int -> BL.ByteString
-bsRange bs l h = BL.drop (fromIntegral l) $ BL.take (fromIntegral h) bs
-
-processBlob :: RecoveryContext -> TreeB -> Maybe RecoveryBlob
-processBlob c t = do
-    b <- find (\b -> blobId b == drtBlob t) $ blobs $ drtt c
-    let m = mediums c Map.!? medium b
-    case m of
-        Nothing -> listToMaybe $ mapMaybe (\st -> processTransform c st (blobId b)) $ source t
-        Just rm -> Just $ RecoveryBlob (blobId b) (bsRange rm (offset b) (offset b + blobLength b))
+processBlob :: RecoveryContext -> TreeB -> Either String RecoveryBlob
+processBlob ctx t = do
+    let maybeBlob = availableBlobs ctx Map.!? drtBlob t
+    case maybeBlob of
+        Just b -> Right $ RecoveryBlob (drtBlob t) b
+        Nothing -> do
+            let srcs = map (\st -> processTransform ctx st (drtBlob t)) $ source t
+            case partitionEithers srcs of
+                ([], b:_) -> Right b
+                (errors, _) -> Left $ printf "Blob %s was not found and could not be derived because %s" (show (drtBlob t)) (unlines $ map ("\t" ++) errors)
 
 processFunc :: RecoveryContext -> Trans -> [RecoveryBlob] -> [BL.ByteString]
 processFunc c t bs = do
@@ -53,16 +55,15 @@ processFunc c t bs = do
     let f = fromJust $ funcs c Map.!? func t
     f real_args
 
-processTransform :: RecoveryContext -> TreeT -> BlobID -> Maybe RecoveryBlob
+processTransform :: RecoveryContext -> TreeT -> BlobID -> Either String RecoveryBlob
 processTransform c t bi = do
     let blob_args = map (processBlob c) $ inBlobs t
-    if Nothing `elem` blob_args
-        then Nothing
-        else do
-            let just_args = catMaybes blob_args
-            let out = processFunc c (drtTransform t) just_args
-            blob_index <- elemIndex bi $ E.out $ drtTransform t
+    case partitionEithers blob_args of
+        ([], blobs) -> do
+            let out = processFunc c (drtTransform t) blobs
+            let blob_index = fromJust $ elemIndex bi $ E.out $ drtTransform t
             return $ RecoveryBlob bi (out !! blob_index)
+        (errors, _) -> Left $ printf "Cannot evaluate transform producing blob %s because %s which are its arguments" (show bi) (unlines $ map ("\t" ++) errors)
 
 splitOn :: Eq a => a -> [a] -> ([a], [a])
 splitOn d l = (x, y)
@@ -80,15 +81,24 @@ validateDataBlob :: Data -> RecoveryBlob -> Bool
 validateDataBlob d b = crc32 (blobData b) == checksum d
 
 recoverData :: RecoveryContext -> DataID -> IO ()
-recoverData c d = do
-    let dt = dataTrees (drtt c) !! d
+recoverData ctx d = do
+    let dt = dataTrees (drtt ctx) !! d
     let dataBlobId = iblobId $ drtData dt
     createDirectoryIfMissing True "./data"
-    let rcblobs = map (\d -> processTransform c d dataBlobId) $ transforms dt
-    let good_blobs = filter (validateDataBlob (drtData dt)) $ catMaybes rcblobs
-    case good_blobs of
-        []    -> putStrLn $ "Recovery of " ++ show d ++ " failed."
-        (b:_) -> do
+    let recBlobs =  map (\d -> processTransform ctx d dataBlobId) $ transforms dt
+
+    let good_blobs = if verifyIntegrity ctx
+        then map (\b -> do
+            rb <- b
+            if validateDataBlob (drtData dt) rb
+                then Right rb
+                else Left "Data blob is corrupt"
+                )  recBlobs
+        else recBlobs
+
+    case partitionEithers good_blobs of
+        (errors, [])  -> putStrLn $ "Recovery of " ++ show d ++ " failed attempted:\n" ++ unlines (zipWith (printf "\tAttempt %d - %s") ([0..] :: [Int]) errors)
+        (_, b:_) -> do
             BL.writeFile ("./data/" ++ nameForData (drtData dt)) $ blobData b
             putStrLn $ "Recovery of " ++ show d ++ " succesful."
     return ()

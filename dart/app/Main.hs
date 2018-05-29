@@ -10,6 +10,7 @@ import qualified Data.Map.Strict        as Map
 import           Data.Maybe
 import           System.Console.CmdArgs
 import qualified System.Console.CmdArgs as CA
+import           System.IO
 
 import           Entities
 
@@ -21,13 +22,14 @@ import           Tree
 data Dart = List {
     drt :: FilePath
 } | Recover {
-    drt     :: FilePath,
-    ids     :: [Int],
-    mediums :: [(Int, FilePath)]
+    drt      :: FilePath,
+    ids      :: [Int],
+    mediums  :: [(Int, FilePath)],
+    noVerify :: Bool
 } deriving (Show, CA.Data, Typeable)
 
 list = List def
-recover = Recover def def def
+recover = Recover def def def def
 
 loadAndConvert :: FilePath -> IO DRTT
 loadAndConvert path = do
@@ -47,11 +49,20 @@ doList (List file) = do
         ) $ dataTrees t
 
 
+getBlobData :: Blob -> [(Int, Handle)] -> IO BL.ByteString
+getBlobData b mh = do
+    let h = fromJust $ medium b `lookup` mh
+    hSeek h AbsoluteSeek (fromIntegral (offset b))
+    BL.hGet h (blobLength b)
+
 doRecover :: Dart -> IO ()
-doRecover (Recover file ids mds) = do
+doRecover (Recover file ids mds dv) = do
     t <- loadAndConvert file
-    ms <- mapM (\(i, p) ->  liftM2 (,) (return i) (BL.readFile p)) mds
-    let context = RecoveryContext (Map.fromList ms) (Map.fromList funcTable) t True
+    let mids = [m | (m, _) <- mds]
+    mhandles <- mapM (\(i, p) ->  liftM2 (,) (return i) (openFile p ReadMode)) mds
+    let bs = filter (\b -> medium b `elem` mids) $ blobs t
+    availBlobs <- mapM (\b -> liftM2 (,) (return (blobId b)) (getBlobData b mhandles)) bs
+    let context = RecoveryContext (Map.fromList availBlobs) (Map.fromList funcTable) t (not dv)
     mapM_ (recoverData context) ids
 
 main :: IO ()

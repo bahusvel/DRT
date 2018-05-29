@@ -28,6 +28,7 @@ dependencies:
 - digest
 - containers
 - hint
+- text-format
 
 library:
   source-dirs: src
