@@ -1,6 +1,6 @@
 module Tree (
     logToTree,
-    DRTT (dataTrees, blobs),
+    DRTT (dataTrees, blobs, mediums),
     TreeD (TreeD, drtData, transforms),
     TreeB (source, drtBlob),
     TreeT (inBlobs, drtTransform)

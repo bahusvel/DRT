@@ -13,14 +13,18 @@ import qualified System.Console.CmdArgs as CA
 import           System.IO
 
 import           Entities
+import qualified Tree                   as T
 
 import           Funcs
 import           Log
 import           Recovery
 import           Tree
 
+data ListModes = Datas | Blobs | Mediums deriving (CA.Data, Show)
+
 data Dart = List {
-    drt :: FilePath
+    drt    :: FilePath,
+    entity :: ListModes
 } | Recover {
     drt      :: FilePath,
     ids      :: [Int],
@@ -28,7 +32,7 @@ data Dart = List {
     noVerify :: Bool
 } deriving (Show, CA.Data, Typeable)
 
-list = List def
+list = List def $ enum [Datas &= explicit &= name "data" , Blobs &= explicit &= name "blobs", Mediums &= explicit &= name "mediums"]
 recover = Recover def def def def
 
 loadAndConvert :: FilePath -> IO DRTT
@@ -38,15 +42,27 @@ loadAndConvert path = do
     return $ logToTree l
 
 doList :: Dart -> IO ()
-doList (List file) = do
+doList (List file entity) = do
     t <- loadAndConvert file
-    putStrLn "Datasets available in DRT file:"
-    putStrLn "ID\tTags"
-    mapM_ (\(TreeD d _) -> do
-            let did = show (dataId d)
-            let tags = intercalate "," (dataTags d)
-            putStrLn (did ++ "\t" ++ tags)
-        ) $ dataTrees t
+    case entity of
+        Datas -> do
+            putStrLn "Datasets available in DRT file:"
+            putStrLn "ID\tTags"
+            mapM_ (\(TreeD d _) -> do
+                let tags = intercalate "," (dataTags d)
+                putStrLn (show (dataId d) ++ "\t" ++ tags)
+                ) $ dataTrees t
+        Blobs -> do
+            putStrLn "Blobs available in DRT file:"
+            putStrLn "ID\tBlob"
+            mapM_ (\b -> putStrLn (show (blobId b) ++ "\t" ++ show b)) $ blobs t
+        Mediums -> do
+            putStrLn "Mediums available in DRT file:"
+            putStrLn "ID\tTags"
+            mapM_ (\m -> do
+                let tags = intercalate "," (mediumTags m)
+                putStrLn (show (mediumId m) ++ "\t" ++ tags)
+                ) $ T.mediums t
 
 
 getBlobData :: Blob -> [(Int, Handle)] -> IO BL.ByteString
