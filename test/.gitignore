@@ -4,3 +4,6 @@ fiemap
 *.drtl
 *.drtt
 data
+usbfs
+*.tree
+blockfault
