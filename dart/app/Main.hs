@@ -12,7 +12,7 @@ import           Data.Maybe
 import           System.Console.CmdArgs
 import qualified System.Console.CmdArgs as CA
 import           System.IO
-import           Text.Regex.Posix
+import           Text.Regex.TDFA
 
 
 import           Entities
@@ -37,8 +37,9 @@ data Dart = List {
     noVerify    :: Bool
 } deriving (Show, CA.Data, Typeable)
 
-list = List def (def &= name "filter") $ enum [Datas &= explicit &= name "data" , Blobs &= explicit &= name "blobs", Mediums &= explicit &= name "mediums"]
-recover = Recover def (def &= name "filter") def def def
+list = List def (def &= explicit &= name "filter") $ enum [Datas &= explicit &= name "data" , Blobs &= explicit &= name "blobs", Mediums &= explicit &= name "mediums"]
+
+recover = Recover def (def &= explicit &= name "filter") def def def
 
 loadAndConvert :: FilePath -> IO DRTT
 loadAndConvert path = do
@@ -53,10 +54,12 @@ doList (List file filt entity) = do
         Datas -> do
             putStrLn "Datasets available in DRT file:"
             putStrLn "ID\tTags"
-            mapM_ (\(TreeD d _) -> do
+            let ds = map drtData (dataTrees t)
+            let ds' = if null filt then ds else filter (filterOnTags filt . dataTags) ds
+            mapM_ (\d -> do
                 let tags = intercalate "," (dataTags d)
                 putStrLn (show (dataId d) ++ "\t" ++ tags)
-                ) $ dataTrees t
+                ) ds'
         Blobs -> do
             putStrLn "Blobs available in DRT file:"
             putStrLn "ID\tBlob"
@@ -64,10 +67,13 @@ doList (List file filt entity) = do
         Mediums -> do
             putStrLn "Mediums available in DRT file:"
             putStrLn "ID\tTags"
+            let ms = if null filt
+                then T.mediums t
+                else filter (filterOnTags filt . mediumTags) $ T.mediums t
             mapM_ (\m -> do
                 let tags = intercalate "," (mediumTags m)
                 putStrLn (show (mediumId m) ++ "\t" ++ tags)
-                ) $ T.mediums t
+                ) ms
 
 
 getBlobData :: Blob -> [(Int64, Handle)] -> IO BL.ByteString
@@ -76,27 +82,38 @@ getBlobData b mh = do
     hSeek h AbsoluteSeek (fromIntegral (offset b))
     BL.hGet h $ fromIntegral $ blobLength b
 
-filterData :: Data -> [(String, String)] -> Bool
-filterData d filters = filter_matches `notElem` False
+filterOnTags ::  [(String, String)] -> [Tag] -> Bool
+filterOnTags filters ts =  False `notElem` filter_matches
     where
-        tags = map (splitOn ":") dataTags d
+        split_tags = map (splitOn ':') ts
         filter_matches = map (\(t, v) -> fromMaybe False (do
-            tag_value <- tags `lookup` t
-            return (tag_value =~ v :: Bool)
+                tag_value <- t `lookup` split_tags
+                return (tag_value =~ v :: Bool)
             )) filters
 
 
 doRecover :: Dart -> IO ()
 doRecover (Recover file filt ids mds dv) = do
     t <- loadAndConvert file
-    let ids = if null ids then [ dataId (drtData td) | td <- dataTrees t] else ids
-    let ids = if null filt then ids else filterData
+    let ids' = if null ids
+        then [ dataId (drtData td) | td <- dataTrees t]
+        else ids
+
+    let ids'' = if null filt
+        then ids'
+        else map (dataId) $ filter (filterOnTags filt . dataTags) (
+            filter (\d -> dataId d `elem` ids) $ map drtData (dataTrees t)
+            )
+
     let mids = [m | (m, _) <- mds]
     mhandles <- mapM (\(i, p) ->  liftM2 (,) (return i) (openFile p ReadMode)) mds
+
     let bs = filter (\b -> medium b `elem` mids) $ blobs t
     availBlobs <- mapM (\b -> liftM2 (,) (return (blobId b)) (getBlobData b mhandles)) bs
+
     let context = RecoveryContext (Map.fromList availBlobs) (Map.fromList funcTable) t (not dv)
-    mapM_ (recoverData context . fromIntegral) ids
+
+    mapM_ (recoverData context . fromIntegral) ids''
 
 main :: IO ()
 main = do

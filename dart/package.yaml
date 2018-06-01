@@ -29,6 +29,7 @@ dependencies:
 - containers
 - hint
 - text-format
+- regex-tdfa
 
 library:
   source-dirs: src
