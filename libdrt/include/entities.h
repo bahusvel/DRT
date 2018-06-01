@@ -12,6 +12,7 @@ typedef drt_id drt_medium_id;
 typedef uint64_t drt_off;
 typedef uint32_t drt_inline_len;
 typedef uint32_t drt_checksum;
+typedef uint16_t drt_tag_len;
 
 enum drt_entity_type { ENT_FUNC, ENT_DATA, ENT_TRANSFORM, ENT_MEDIUM };
 
@@ -20,12 +21,12 @@ enum drt_entity_type { ENT_FUNC, ENT_DATA, ENT_TRANSFORM, ENT_MEDIUM };
 #define SIZE_TRANS_TYPE 1
 
 struct drt_tag {
-	drt_inline_len len;
+	drt_tag_len len;
 	char *val;
 };
 
 struct drt_tags {
-	drt_inline_len count;
+	drt_tag_len count;
 	struct drt_tag *tags;
 };
 

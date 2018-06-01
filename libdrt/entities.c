@@ -8,15 +8,19 @@
 #define be64toh(val) bswap_64(val)
 #define htobe32(val) bswap_32(val)
 #define be32toh(val) bswap_32(val)
+#define htobe16(val) bswap_16(val)
+#define be16toh(val) bswap_16(val)
 #elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
 #define htobe64(val) val
 #define be64toh(val) val
 #define htobe32(val) val
 #define be32toh(val) val
+#define htobe16(val) val
+#define be16toh(val) val
 #endif
 
 static int size_drt_tags(struct drt_tags *tags) {
-	int a = sizeof(drt_inline_len) * (tags->count + 1);
+	int a = sizeof(drt_tag_len) * (tags->count + 1);
 	for (int i = 0; i < tags->count; i++) {
 		a += tags->tags[i].len;
 	}
@@ -25,11 +29,11 @@ static int size_drt_tags(struct drt_tags *tags) {
 
 static int enc_drt_tags(struct drt_tags *tags, unsigned char *buf) {
 	unsigned char *orig = buf;
-	*(drt_inline_len *)buf = htobe32(tags->count);
-	buf += sizeof(drt_inline_len);
+	*(drt_tag_len *)buf = htobe16(tags->count);
+	buf += sizeof(drt_tag_len);
 	for (int i = 0; i < tags->count; i++) {
-		*(drt_inline_len *)buf = htobe32(tags->tags[i].len);
-		buf += sizeof(drt_inline_len);
+		*(drt_tag_len *)buf = htobe16(tags->tags[i].len);
+		buf += sizeof(drt_tag_len);
 		memcpy(buf, tags->tags[i].val, tags->tags[i].len);
 		buf += tags->tags[i].len;
 	}

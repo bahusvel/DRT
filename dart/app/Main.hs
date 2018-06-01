@@ -12,6 +12,8 @@ import           Data.Maybe
 import           System.Console.CmdArgs
 import qualified System.Console.CmdArgs as CA
 import           System.IO
+import           Text.Regex.Posix
+
 
 import           Entities
 import qualified Tree                   as T
@@ -24,17 +26,19 @@ import           Tree
 data ListModes = Datas | Blobs | Mediums deriving (CA.Data, Show)
 
 data Dart = List {
-    drt    :: FilePath,
-    entity :: ListModes
+    drt         :: FilePath,
+    queryFilter :: [(String, String)],
+    entity      :: ListModes
 } | Recover {
-    drt      :: FilePath,
-    ids      :: [Int64],
-    mediums  :: [(Int64, FilePath)],
-    noVerify :: Bool
+    drt         :: FilePath,
+    queryFilter :: [(String, String)],
+    ids         :: [Int64],
+    mediums     :: [(Int64, FilePath)],
+    noVerify    :: Bool
 } deriving (Show, CA.Data, Typeable)
 
-list = List def $ enum [Datas &= explicit &= name "data" , Blobs &= explicit &= name "blobs", Mediums &= explicit &= name "mediums"]
-recover = Recover def def def def
+list = List def (def &= name "filter") $ enum [Datas &= explicit &= name "data" , Blobs &= explicit &= name "blobs", Mediums &= explicit &= name "mediums"]
+recover = Recover def (def &= name "filter") def def def
 
 loadAndConvert :: FilePath -> IO DRTT
 loadAndConvert path = do
@@ -43,7 +47,7 @@ loadAndConvert path = do
     return $ logToTree l
 
 doList :: Dart -> IO ()
-doList (List file entity) = do
+doList (List file filt entity) = do
     t <- loadAndConvert file
     case entity of
         Datas -> do
@@ -72,9 +76,21 @@ getBlobData b mh = do
     hSeek h AbsoluteSeek (fromIntegral (offset b))
     BL.hGet h $ fromIntegral $ blobLength b
 
+filterData :: Data -> [(String, String)] -> Bool
+filterData d filters = filter_matches `notElem` False
+    where
+        tags = map (splitOn ":") dataTags d
+        filter_matches = map (\(t, v) -> fromMaybe False (do
+            tag_value <- tags `lookup` t
+            return (tag_value =~ v :: Bool)
+            )) filters
+
+
 doRecover :: Dart -> IO ()
-doRecover (Recover file ids mds dv) = do
+doRecover (Recover file filt ids mds dv) = do
     t <- loadAndConvert file
+    let ids = if null ids then [ dataId (drtData td) | td <- dataTrees t] else ids
+    let ids = if null filt then ids else filterData
     let mids = [m | (m, _) <- mds]
     mhandles <- mapM (\(i, p) ->  liftM2 (,) (return i) (openFile p ReadMode)) mds
     let bs = filter (\b -> medium b `elem` mids) $ blobs t

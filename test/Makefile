@@ -33,7 +33,7 @@ corrupt_mbr:
 	partprobe
 
 block_device:
-	sudo umount usbfs
+	sudo umount usbfs || true
 	rm block.raw
 	stat block.raw > /dev/null || ( \
 		dd if=/dev/zero of=block.raw bs=1M count=1024 && \

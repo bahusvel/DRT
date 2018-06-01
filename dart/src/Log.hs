@@ -41,14 +41,17 @@ getDrtId = fromIntegral <$> getInt64be
 getDrtLen :: Get Int
 getDrtLen = fromIntegral <$> getInt32be
 
+getDrtTagLen :: Get Int
+getDrtTagLen = fromIntegral <$> getInt16be
+
 getDrtOffset :: Get Int64
 getDrtOffset = fromIntegral <$> getInt64be
 
 decodeTags :: Get [Tag]
 decodeTags = do
-    count <- getDrtLen
+    count <- getDrtTagLen
     replicateM count (do
-            len <- getDrtLen
+            len <- getDrtTagLen
             string <- getByteString len
             return $ unpack string
         )
